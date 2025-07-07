@@ -14,7 +14,7 @@ const pool = mysql.createPool({
   database: process.env.database,
 });
 app.use(cors({
-  origin: "https://your-shopify-store.myshopify.com", // только твой магазин
+  origin: "https://onrkon-de.myshopify.com"
 }));
 
 app.get("/short", async (req, res) => {
