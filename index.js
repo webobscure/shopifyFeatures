@@ -8,8 +8,7 @@ const port = 3000;
 
 dotenv.config();
 
-app.use(cors()); // разрешить ВСЕ origin (на время теста)
-app.options("*", cors()); // для preflight
+app.use(cors()); // разрешаем все домены
 
 const pool = mysql.createPool({
   host: process.env.host,
