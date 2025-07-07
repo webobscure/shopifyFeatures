@@ -1,7 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const mysql = require("mysql2/promise");
-
+const cors = require("cors");
 const app = express();
 const port = 3000;
 
@@ -13,6 +13,9 @@ const pool = mysql.createPool({
   password: process.env.password,
   database: process.env.database,
 });
+app.use(cors({
+  origin: "https://your-shopify-store.myshopify.com", // только твой магазин
+}));
 
 app.get("/short", async (req, res) => {
     let { name, country } = req.query;
