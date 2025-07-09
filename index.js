@@ -129,7 +129,7 @@ app.get("/chars", async (req, res) => {
         maximumFractionDigits: 6
       });
     
-      return `${formatted} ${locale === 'ru' ? 'м³' : 'm³'}`;
+      return `${formatted} `;
     }
     
 
