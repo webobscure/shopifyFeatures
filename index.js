@@ -17,9 +17,8 @@ const pool = mysql.createPool({
   database: process.env.database,
   waitForConnections: true,
   connectionLimit: 10,
-  connectTimeout: 20000 // 20 секунд
+  connectTimeout: 20000, // 20 секунд
 });
-
 
 app.get("/short", async (req, res) => {
   let { name, country } = req.query;
@@ -96,18 +95,48 @@ app.get("/chars", async (req, res) => {
     for (const row of rows) {
       const specName = row.specification_name?.trim();
       const specValue = row.specification?.trim();
-      const suffix = row.specification_suffix?.trim() || '';
+      const suffix = row.specification_suffix?.trim() || "";
 
-      if (!specValue || specValue === 'Array') continue;
+      if (!specValue || specValue === "Array") continue;
 
       if (!grouped[specName]) {
         grouped[specName] = {
           values: new Set(),
-          suffix: suffix
+          suffix: suffix,
         };
       }
 
       grouped[specName].values.add(specValue);
+    }
+    function formatVolume(value, locale = "de") {
+      // value — строка с числом и возможными единицами, например "22356 m³"
+      // или "0.022356 м³"
+
+      // Парсим число из строки
+      let num = parseFloat(value.replace(/[^\d.,-]/g, "").replace(",", "."));
+      if (isNaN(num)) return value; // если парсинг не удался — возвращаем оригинал
+
+      // Для демонстрации, допустим, что в немецкой локали число в литрах, а нужно в кубометрах
+      // Если нужно преобразование — делай тут. Например, если число слишком большое, можно масштабировать
+
+      // Форматируем в зависимости от локали:
+      if (locale === "ru") {
+        // Русская локаль — разделитель запятая, 6 знаков после запятой
+        return (
+          num.toLocaleString("ru-RU", {
+            minimumFractionDigits: 6,
+            maximumFractionDigits: 6,
+          }) + " м³"
+        );
+      } else {
+        // Немецкая — точка, 3 знака после запятой
+        return (
+          num.toLocaleString("de-DE", {
+            minimumFractionDigits: 3,
+            maximumFractionDigits: 3,
+          }) + " m³"
+        );
+      }
     }
 
     let html = '<div class="new_listing_table">';
@@ -115,17 +144,23 @@ app.get("/chars", async (req, res) => {
     for (const [name, data] of Object.entries(grouped)) {
       let valuesArray = Array.from(data.values);
 
+      // Особая обработка объема
+      if (name === "Umfang GBX" || name === "Объем индивидуальной упаковки") {
+        valuesArray = valuesArray.map((val) =>
+          formatVolume(val, country == 6 ? "de" : "ru")
+        );
+      }
+
       if (name === "VESA Größen") {
+        // сортировка размеров, как выше
         valuesArray.sort((a, b) => {
           const parseSize = (str) => {
-            let clean = str.replace(/mm/gi, '').trim();
-            let [w, h] = clean.split('x').map(Number);
+            let clean = str.replace(/mm/gi, "").trim();
+            let [w, h] = clean.split("x").map(Number);
             return { w: w || 0, h: h || 0 };
           };
-
           const sizeA = parseSize(a);
           const sizeB = parseSize(b);
-
           if (sizeA.w !== sizeB.w) return sizeA.w - sizeB.w;
           return sizeA.h - sizeB.h;
         });
@@ -133,7 +168,8 @@ app.get("/chars", async (req, res) => {
         valuesArray.sort();
       }
 
-      const valueString = valuesArray.join(', ') + (data.suffix ? ' ' + data.suffix : '');
+      const valueString =
+        valuesArray.join(", ") + (data.suffix ? " " + data.suffix : "");
 
       html += `
         <div class="new_listing_table_row">
@@ -152,10 +188,6 @@ app.get("/chars", async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 });
-
-
-
-
 
 app.listen(port, () => {
   console.log("Server working on:", port);
