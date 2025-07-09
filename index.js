@@ -15,7 +15,11 @@ const pool = mysql.createPool({
   user: process.env.user,
   password: process.env.password,
   database: process.env.database,
+  waitForConnections: true,
+  connectionLimit: 10,
+  connectTimeout: 20000 // 20 секунд
 });
+
 
 app.get("/short", async (req, res) => {
   let { name, country } = req.query;
@@ -51,6 +55,85 @@ app.get("/short", async (req, res) => {
     return res.status(500).json({ error: "Database error" });
   }
 });
+
+app.get("/chars", async (req, res) => {
+  let { name, country } = req.query;
+
+  if (!name || !country) {
+    return res.status(400).json({ error: "Missing parameters" });
+  }
+
+  name = decodeURIComponent(name).trim();
+
+  const sql = `
+    SELECT 
+      b.specification_name,
+      b.specification_suffix,
+      a.specification
+    FROM 
+      products_specifications AS a
+    JOIN specification_description AS b ON b.specifications_id = a.specifications_id
+    JOIN specifications AS c ON c.specifications_id = a.specifications_id
+    JOIN products_description AS d ON d.products_id = a.products_id
+    WHERE 
+      d.products_name = ? AND
+      b.language_id = ? AND
+      a.language_id = ? AND
+      c.show_data_sheet = 'True'
+    ORDER BY c.specification_sort_order ASC
+  `;
+
+  const values = [name, country, country];
+
+  try {
+    const [rows] = await pool.query(sql, values);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Характеристики не найдены" });
+    }
+
+    const grouped = {};
+    for (const row of rows) {
+      const specName = row.specification_name?.trim();
+      const specValue = row.specification?.trim();
+      const suffix = row.specification_suffix?.trim() || '';
+
+      if (!specValue || specValue === 'Array') continue;
+
+      if (!grouped[specName]) {
+        grouped[specName] = {
+          values: new Set(),
+          suffix: suffix
+        };
+      }
+
+      grouped[specName].values.add(specValue);
+    }
+
+    let html = '<div class="new_listing_table">';
+    for (const [name, data] of Object.entries(grouped)) {
+      const valuesArray = Array.from(data.values).sort();
+      const valueString = valuesArray.join(', ') + (data.suffix ? ' ' + data.suffix : '');
+
+      html += `
+        <div class="new_listing_table_row">
+          <div class="new_listing_table_left">${name}</div>
+          <div class="new_listing_table_right" style="line-height: 24.4px;">
+            ${valueString}
+          </div>
+        </div>`;
+    }
+    html += '<div class="clear"></div></div>';
+
+    res.json({ table: html });
+  } catch (err) {
+    console.error("DB error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+
+
 
 app.listen(port, () => {
   console.log("Server working on:", port);
