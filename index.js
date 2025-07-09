@@ -68,7 +68,8 @@ app.get("/chars", async (req, res) => {
     SELECT 
       b.specification_name,
       b.specification_suffix,
-      a.specification
+      a.specification,
+      a.specifications_id
     FROM 
       products_specifications AS a
     JOIN specification_description AS b ON b.specifications_id = a.specifications_id
@@ -84,6 +85,43 @@ app.get("/chars", async (req, res) => {
 
   const values = [name, country, country];
 
+  // Соответствие language_id → locale
+  const LANGUAGE_LOCALE_MAP = {
+    1: "ru-RU",
+    2: "en-US",
+    3: "fr-FR",
+    4: "it-IT",
+    5: "es-ES",
+    6: "de-DE",
+    7: "pl-PL",
+  };
+
+  const locale = LANGUAGE_LOCALE_MAP[country] || "en-US";
+
+  // ID-шники для специальных полей
+  const VOLUME_IDS = new Set([763]); // Объем индивидуальной упаковки, Umfang GBX и др.
+  const VESA_IDS = new Set([24]); // VESA sizes
+
+  // Функция форматирования объема
+  function formatVolume(raw, locale = "en-US") {
+    if (!raw) return raw;
+
+    let numStr = raw.replace(/[^\d.,]/g, "").replace(",", ".");
+    let num = parseFloat(numStr);
+
+    if (isNaN(num)) return raw;
+
+    // Преобразуем из см³ в м³, если значение больше 1000
+    if (num > 1000) {
+      num = num / 1_000_000;
+    }
+
+    return num.toLocaleString(locale, {
+      minimumFractionDigits: 6,
+      maximumFractionDigits: 6,
+    });
+  }
+
   try {
     const [rows] = await pool.query(sql, values);
 
@@ -91,11 +129,15 @@ app.get("/chars", async (req, res) => {
       return res.status(404).json({ error: "Характеристики не найдены" });
     }
 
+    // Группируем данные по названию характеристики
     const grouped = {};
+    const specIdMap = {}; // название характеристики → ID
+
     for (const row of rows) {
       const specName = row.specification_name?.trim();
       const specValue = row.specification?.trim();
       const suffix = row.specification_suffix?.trim() || "";
+      const specId = row.specifications_id;
 
       if (!specValue || specValue === "Array") continue;
 
@@ -103,50 +145,27 @@ app.get("/chars", async (req, res) => {
         grouped[specName] = {
           values: new Set(),
           suffix: suffix,
+          specId: specId,
         };
+        specIdMap[specName] = specId;
       }
 
       grouped[specName].values.add(specValue);
     }
-    function formatVolume(raw, locale = 'de') {
-      if (!raw) return raw;
-    
-      // Извлекаем только число
-      let numStr = raw.replace(/[^\d.,]/g, '').replace(',', '.');
-      let num = parseFloat(numStr);
-    
-      if (isNaN(num)) return raw;
-    
-      // Предположим, что значение было в кубических сантиметрах, переводим в м³
-      // Пример: 22356 => 0.022356
-      if (num > 1000) {
-        num = num / 1_000_000;
-      }
-    
-      // Форматируем число по локали
-      const formatted = num.toLocaleString(locale === 'ru' ? 'ru-RU' : 'de-DE', {
-        minimumFractionDigits: 6,
-        maximumFractionDigits: 6
-      });
-    
-      return `${formatted} `;
-    }
-    
 
     let html = '<div class="new_listing_table">';
 
     for (const [name, data] of Object.entries(grouped)) {
       let valuesArray = Array.from(data.values);
+      const specId = data.specId;
 
-      // Особая обработка объема
-      if (name === "Umfang GBX" || name === "Объем индивидуальной упаковки") {
-        valuesArray = valuesArray.map((val) =>
-          formatVolume(val, country == 6 ? "de" : "ru")
-        );
+      // Обработка объема
+      if (VOLUME_IDS.has(specId)) {
+        valuesArray = valuesArray.map((val) => formatVolume(val, locale));
       }
 
-      if (name === "VESA Größen") {
-        // сортировка размеров, как выше
+      // Сортировка VESA размеров
+      if (VESA_IDS.has(specId)) {
         valuesArray.sort((a, b) => {
           const parseSize = (str) => {
             let clean = str.replace(/mm/gi, "").trim();
