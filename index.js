@@ -111,8 +111,28 @@ app.get("/chars", async (req, res) => {
     }
 
     let html = '<div class="new_listing_table">';
+
     for (const [name, data] of Object.entries(grouped)) {
-      const valuesArray = Array.from(data.values).sort();
+      let valuesArray = Array.from(data.values);
+
+      if (name === "VESA Größen") {
+        valuesArray.sort((a, b) => {
+          const parseSize = (str) => {
+            let clean = str.replace(/mm/gi, '').trim();
+            let [w, h] = clean.split('x').map(Number);
+            return { w: w || 0, h: h || 0 };
+          };
+
+          const sizeA = parseSize(a);
+          const sizeB = parseSize(b);
+
+          if (sizeA.w !== sizeB.w) return sizeA.w - sizeB.w;
+          return sizeA.h - sizeB.h;
+        });
+      } else {
+        valuesArray.sort();
+      }
+
       const valueString = valuesArray.join(', ') + (data.suffix ? ' ' + data.suffix : '');
 
       html += `
@@ -123,6 +143,7 @@ app.get("/chars", async (req, res) => {
           </div>
         </div>`;
     }
+
     html += '<div class="clear"></div></div>';
 
     res.json({ table: html });
@@ -131,6 +152,7 @@ app.get("/chars", async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 });
+
 
 
 
