@@ -108,36 +108,30 @@ app.get("/chars", async (req, res) => {
 
       grouped[specName].values.add(specValue);
     }
-    function formatVolume(value, locale = "de") {
-      // value — строка с числом и возможными единицами, например "22356 m³"
-      // или "0.022356 м³"
-
-      // Парсим число из строки
-      let num = parseFloat(value.replace(/[^\d.,-]/g, "").replace(",", "."));
-      if (isNaN(num)) return value; // если парсинг не удался — возвращаем оригинал
-
-      // Для демонстрации, допустим, что в немецкой локали число в литрах, а нужно в кубометрах
-      // Если нужно преобразование — делай тут. Например, если число слишком большое, можно масштабировать
-
-      // Форматируем в зависимости от локали:
-      if (locale === "ru") {
-        // Русская локаль — разделитель запятая, 6 знаков после запятой
-        return (
-          num.toLocaleString("ru-RU", {
-            minimumFractionDigits: 6,
-            maximumFractionDigits: 6,
-          }) + " м³"
-        );
-      } else {
-        // Немецкая — точка, 3 знака после запятой
-        return (
-          num.toLocaleString("de-DE", {
-            minimumFractionDigits: 3,
-            maximumFractionDigits: 3,
-          }) + " m³"
-        );
+    function formatVolume(raw, locale = 'de') {
+      if (!raw) return raw;
+    
+      // Извлекаем только число
+      let numStr = raw.replace(/[^\d.,]/g, '').replace(',', '.');
+      let num = parseFloat(numStr);
+    
+      if (isNaN(num)) return raw;
+    
+      // Предположим, что значение было в кубических сантиметрах, переводим в м³
+      // Пример: 22356 => 0.022356
+      if (num > 1000) {
+        num = num / 1_000_000;
       }
+    
+      // Форматируем число по локали
+      const formatted = num.toLocaleString(locale === 'ru' ? 'ru-RU' : 'de-DE', {
+        minimumFractionDigits: 6,
+        maximumFractionDigits: 6
+      });
+    
+      return `${formatted} ${locale === 'ru' ? 'м³' : 'm³'}`;
     }
+    
 
     let html = '<div class="new_listing_table">';
 
