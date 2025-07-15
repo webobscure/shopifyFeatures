@@ -20,9 +20,6 @@ const pool = mysql.createPool({
   connectTimeout: 20000, // 20 секунд
 });
 
-
-
-
 app.get("/short", async (req, res) => {
   let { name, country } = req.query;
 
@@ -52,8 +49,7 @@ app.get("/short", async (req, res) => {
     res.json({
       description: rows[0].products_short_description,
     });
-    console.log("Запрос к базе:", sql, values);
-
+    console.log("Запрос к базе c данными:", values);
   } catch (err) {
     console.error("DB error:", err);
     return res.status(500).json({ error: "Database error" });
@@ -201,7 +197,7 @@ app.get("/chars", async (req, res) => {
     html += '<div class="clear"></div></div>';
 
     res.json({ table: html });
-    console.log("Запрос к базе:", sql, values);
+    console.log("Запрос к базе c данными:", values);
   } catch (err) {
     console.error("DB error:", err);
     res.status(500).json({ error: "Database error" });
