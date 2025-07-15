@@ -201,6 +201,7 @@ app.get("/chars", async (req, res) => {
     html += '<div class="clear"></div></div>';
 
     res.json({ table: html });
+    console.log("Запрос к базе:", sql, values);
   } catch (err) {
     console.error("DB error:", err);
     res.status(500).json({ error: "Database error" });
