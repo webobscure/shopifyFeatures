@@ -17,7 +17,9 @@ const pool = mysql.createPool({
   database: process.env.database,
   waitForConnections: true,
   connectionLimit: 10,
-  connectTimeout: 20000, // 20 секунд
+  connectTimeout: 30000,
+  enableKeepAlive: true, // <-- добавь это
+  keepAliveInitialDelay: 0,
 });
 
 app.get("/short", async (req, res) => {
@@ -49,7 +51,6 @@ app.get("/short", async (req, res) => {
     res.json({
       description: rows[0].products_short_description,
     });
-    console.log("Запрос к базе c данными:", values);
   } catch (err) {
     console.error("DB error:", err, values);
     return res.status(500).json({ error: "Database error" });
@@ -197,7 +198,7 @@ app.get("/chars", async (req, res) => {
     html += '<div class="clear"></div></div>';
 
     res.json({ table: html });
-    console.log("Запрос к базе c данными:", values);
+    // console.log("Запрос к базе c данными:", values);
   } catch (err) {
     console.error("DB error:", err, values);
     res.status(500).json({ error: "Database error" });
