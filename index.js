@@ -20,10 +20,7 @@ const pool = mysql.createPool({
   connectTimeout: 20000, // 20 секунд
 });
 
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
-});
+
 
 
 app.get("/short", async (req, res) => {
@@ -55,6 +52,8 @@ app.get("/short", async (req, res) => {
     res.json({
       description: rows[0].products_short_description,
     });
+    console.log("Запрос к базе:", sql, values);
+
   } catch (err) {
     console.error("DB error:", err);
     return res.status(500).json({ error: "Database error" });
