@@ -17,9 +17,8 @@ const pool = mysql.createPool({
   database: process.env.database,
   waitForConnections: true,
   connectionLimit: 10,
-  connectTimeout: 30000,
-  enableKeepAlive: true, // <-- добавь это
-  keepAliveInitialDelay: 0,
+  connectTimeout: 20000,
+ 
 });
 
 app.get("/short", async (req, res) => {
