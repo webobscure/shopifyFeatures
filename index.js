@@ -51,7 +51,7 @@ app.get("/short", async (req, res) => {
     });
     console.log("Запрос к базе c данными:", values);
   } catch (err) {
-    console.error("DB error:", err);
+    console.error("DB error:", err, values);
     return res.status(500).json({ error: "Database error" });
   }
 });
@@ -199,7 +199,7 @@ app.get("/chars", async (req, res) => {
     res.json({ table: html });
     console.log("Запрос к базе c данными:", values);
   } catch (err) {
-    console.error("DB error:", err);
+    console.error("DB error:", err, values);
     res.status(500).json({ error: "Database error" });
   }
 });
