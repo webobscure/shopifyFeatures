@@ -18,6 +18,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   connectTimeout: 20000,
+ 
 });
 
 app.get("/short", async (req, res) => {
@@ -166,26 +167,17 @@ app.get("/chars", async (req, res) => {
 
       // Сортировка VESA размеров
       if (VESA_IDS.has(specId)) {
-        // создаём объекты для сортировки, не меняя оригинальные строки
-        const sortable = valuesArray.map((val) => {
-          let clean = val
-            .replace(/[хxXХ]/g, "x")
-            .replace(/mm/gi, "")
-            .trim();
-          let [w, h] = clean.split("x").map((n) => parseInt(n, 10) || 0);
-          let min = Math.min(w, h);
-          let max = Math.max(w, h);
-          return { original: val, min, max };
+        valuesArray.sort((a, b) => {
+          const parseSize = (str) => {
+            let clean = str.replace(/mm/gi, "").trim();
+            let [w, h] = clean.split("x").map(Number);
+            return { w: w || 0, h: h || 0 };
+          };
+          const sizeA = parseSize(a);
+          const sizeB = parseSize(b);
+          if (sizeA.w !== sizeB.w) return sizeA.w - sizeB.w;
+          return sizeA.h - sizeB.h;
         });
-
-        // сортировка по min, потом max
-        sortable.sort((a, b) => {
-          if (a.min !== b.min) return a.min - b.min;
-          return a.max - b.max;
-        });
-
-        // возвращаем исходные строки в новом порядке
-        valuesArray = sortable.map((item) => item.original);
       } else {
         valuesArray.sort();
       }
@@ -194,12 +186,12 @@ app.get("/chars", async (req, res) => {
         valuesArray.join(", ") + (data.suffix ? " " + data.suffix : "");
 
       html += `
-    <div class="new_listing_table_row">
-      <div class="new_listing_table_left">${name}</div>
-      <div class="new_listing_table_right" style="line-height: 24.4px;">
-        ${valueString}
-      </div>
-    </div>`;
+        <div class="new_listing_table_row">
+          <div class="new_listing_table_left">${name}</div>
+          <div class="new_listing_table_right" style="line-height: 24.4px;">
+            ${valueString}
+          </div>
+        </div>`;
     }
 
     html += '<div class="clear"></div></div>';
