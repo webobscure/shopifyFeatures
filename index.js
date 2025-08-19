@@ -157,42 +157,50 @@ app.get("/chars", async (req, res) => {
     let html = '<div class="new_listing_table">';
 
     for (const [name, data] of Object.entries(grouped)) {
-      let valuesArray = Array.from(data.values);
-      const specId = data.specId;
+  let valuesArray = Array.from(data.values);
+  const specId = data.specId;
 
-      // Обработка объема
-      if (VOLUME_IDS.has(specId)) {
-        valuesArray = valuesArray.map((val) => formatVolume(val, locale));
-      }
+  // Обработка объема
+  if (VOLUME_IDS.has(specId)) {
+    valuesArray = valuesArray.map((val) => formatVolume(val, locale));
+  }
 
-      // Сортировка VESA размеров
-      if (VESA_IDS.has(specId)) {
-        valuesArray.sort((a, b) => {
-          const parseSize = (str) => {
-            let clean = str.replace(/mm/gi, "").trim();
-            let [w, h] = clean.split("x").map(Number);
-            return { w: w || 0, h: h || 0 };
-          };
-          const sizeA = parseSize(a);
-          const sizeB = parseSize(b);
-          if (sizeA.w !== sizeB.w) return sizeA.w - sizeB.w;
-          return sizeA.h - sizeB.h;
-        });
-      } else {
-        valuesArray.sort();
-      }
+  // Сортировка VESA размеров
+  if (VESA_IDS.has(specId)) {
+    valuesArray.sort((a, b) => {
+      const parseSize = (str) => {
+        // нормализуем: латиница/кириллица → "x"
+        let clean = str.replace(/[хxXХ]/g, "x").replace(/mm/gi, "").trim();
+        let [w, h] = clean.split("x").map((n) => parseInt(n, 10) || 0);
 
-      const valueString =
-        valuesArray.join(", ") + (data.suffix ? " " + data.suffix : "");
+        // нормализуем порядок: меньшая сторона первой
+        let min = Math.min(w, h);
+        let max = Math.max(w, h);
+        return { min, max };
+      };
 
-      html += `
-        <div class="new_listing_table_row">
-          <div class="new_listing_table_left">${name}</div>
-          <div class="new_listing_table_right" style="line-height: 24.4px;">
-            ${valueString}
-          </div>
-        </div>`;
-    }
+      const sizeA = parseSize(a);
+      const sizeB = parseSize(b);
+
+      if (sizeA.min !== sizeB.min) return sizeA.min - sizeB.min;
+      return sizeA.max - sizeB.max;
+    });
+  } else {
+    valuesArray.sort();
+  }
+
+  const valueString =
+    valuesArray.join(", ") + (data.suffix ? " " + data.suffix : "");
+
+  html += `
+    <div class="new_listing_table_row">
+      <div class="new_listing_table_left">${name}</div>
+      <div class="new_listing_table_right" style="line-height: 24.4px;">
+        ${valueString}
+      </div>
+    </div>`;
+}
+
 
     html += '<div class="clear"></div></div>';
 
