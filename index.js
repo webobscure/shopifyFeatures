@@ -166,8 +166,8 @@ app.get("/chars", async (req, res) => {
 
       // Сортировка VESA размеров
       if (VESA_IDS.has(specId)) {
-        // нормализуем все значения сначала
-        valuesArray = valuesArray.map((val) => {
+        // создаём объекты для сортировки, не меняя оригинальные строки
+        const sortable = valuesArray.map((val) => {
           let clean = val
             .replace(/[хxXХ]/g, "x")
             .replace(/mm/gi, "")
@@ -175,17 +175,17 @@ app.get("/chars", async (req, res) => {
           let [w, h] = clean.split("x").map((n) => parseInt(n, 10) || 0);
           let min = Math.min(w, h);
           let max = Math.max(w, h);
-          return { formatted: `${min}x${max}`, min, max };
+          return { original: val, min, max };
         });
 
-        // сортируем
-        valuesArray.sort((a, b) => {
+        // сортировка по min, потом max
+        sortable.sort((a, b) => {
           if (a.min !== b.min) return a.min - b.min;
           return a.max - b.max;
         });
 
-        // возвращаем нормализованные строки
-        valuesArray = valuesArray.map((item) => item.formatted);
+        // возвращаем исходные строки в новом порядке
+        valuesArray = sortable.map((item) => item.original);
       } else {
         valuesArray.sort();
       }
