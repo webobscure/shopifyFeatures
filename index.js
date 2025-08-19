@@ -59,9 +59,7 @@ app.get("/short", async (req, res) => {
 app.get("/chars", async (req, res) => {
   let { name, country } = req.query;
 
-  if (!name || !country) {
-    return res.status(400).json({ error: "Missing parameters" });
-  }
+  if (!name || !country) return res.status(400).json({ error: "Missing parameters" });
 
   name = decodeURIComponent(name).trim();
 
@@ -88,17 +86,11 @@ app.get("/chars", async (req, res) => {
   const values = [name, country, country];
 
   const LANGUAGE_LOCALE_MAP = {
-    1: "ru-RU",
-    2: "en-US",
-    3: "fr-FR",
-    4: "it-IT",
-    5: "es-ES",
-    6: "de-DE",
-    7: "pl-PL",
+    1: "ru-RU", 2: "en-US", 3: "fr-FR", 4: "it-IT",
+    5: "es-ES", 6: "de-DE", 7: "pl-PL",
   };
 
   const locale = LANGUAGE_LOCALE_MAP[country] || "en-US";
-
   const VOLUME_IDS = new Set([763]);
   const VESA_IDS = new Set([24]);
 
@@ -108,94 +100,50 @@ app.get("/chars", async (req, res) => {
     let num = parseFloat(numStr);
     if (isNaN(num)) return raw;
     if (num > 1000) num = num / 1_000_000;
-    return num.toLocaleString(locale, {
-      minimumFractionDigits: 6,
-      maximumFractionDigits: 6,
-    });
+    return num.toLocaleString(locale, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
   }
 
   try {
     const [rows] = await pool.query(sql, values);
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Характеристики не найдены" });
-    }
+    if (!rows.length) return res.status(404).json({ error: "Характеристики не найдены" });
 
     const grouped = {};
 
+    // Формируем уникальные значения
     for (const row of rows) {
-  const specName = row.specification_name?.trim();
-  const specValue = row.specification?.trim();
-  const suffix = row.specification_suffix?.trim() || "";
-  const specId = row.specifications_id;
-  const specIndex = row.products_specification_id;
+      const specName = row.specification_name?.trim();
+      const specValue = row.specification?.trim();
+      const suffix = row.specification_suffix?.trim() || "";
+      const specId = row.specifications_id;
+      const specIndex = row.products_specification_id;
 
-  if (!specValue || specValue === "Array") continue;
+      if (!specValue || specValue === "Array") continue;
 
-  if (!grouped[specName]) {
-    grouped[specName] = {
-      valuesMap: new Map(), // value -> index
-      suffix: suffix,
-      specId: specId,
-    };
-  }
+      if (!grouped[specName]) {
+        grouped[specName] = { valuesMap: new Map(), suffix, specId };
+      }
 
-  // Если такого значения ещё нет, добавляем
-  if (!grouped[specName].valuesMap.has(specValue)) {
-    grouped[specName].valuesMap.set(specValue, specIndex);
-  }
-}
+      if (!grouped[specName].valuesMap.has(specValue)) {
+        grouped[specName].valuesMap.set(specValue, specIndex);
+      }
+    }
 
-// Далее при формировании HTML
-for (const [name, data] of Object.entries(grouped)) {
-  let valuesArray = Array.from(data.valuesMap.entries()).map(([value, index]) => ({ value, index }));
-
-  if (VOLUME_IDS.has(data.specId)) {
-    valuesArray = valuesArray.map(v => ({ ...v, value: formatVolume(v.value, locale) }));
-  }
-
-  if (VESA_IDS.has(data.specId)) {
-    // Сортируем по products_specification_id
-    valuesArray.sort((a, b) => (a.index || 0) - (b.index || 0));
-  } else {
-    valuesArray.sort((a, b) => a.value.localeCompare(b.value));
-  }
-
-  const valueString =
-    valuesArray.map(v => v.value).join(", ") + (data.suffix ? " " + data.suffix : "");
-
-  html += `
-    <div class="new_listing_table_row">
-      <div class="new_listing_table_left">${name}</div>
-      <div class="new_listing_table_right" style="line-height: 24.4px;">
-        ${valueString}
-      </div>
-    </div>`;
-}
-
-
+    // Генерация HTML
     let html = '<div class="new_listing_table">';
-
     for (const [name, data] of Object.entries(grouped)) {
-      let valuesArray = data.values;
+      let valuesArray = Array.from(data.valuesMap.entries()).map(([value, index]) => ({ value, index }));
 
       if (VOLUME_IDS.has(data.specId)) {
-        valuesArray = valuesArray.map(v => ({
-          ...v,
-          value: formatVolume(v.value, locale)
-        }));
+        valuesArray = valuesArray.map(v => ({ ...v, value: formatVolume(v.value, locale) }));
       }
 
       if (VESA_IDS.has(data.specId)) {
-        // Сортируем по products_specification_id
         valuesArray.sort((a, b) => (a.index || 0) - (b.index || 0));
       } else {
         valuesArray.sort((a, b) => a.value.localeCompare(b.value));
       }
 
-      const valueString =
-        valuesArray.map(v => v.value).join(", ") +
-        (data.suffix ? " " + data.suffix : "");
+      const valueString = valuesArray.map(v => v.value).join(", ") + (data.suffix ? " " + data.suffix : "");
 
       html += `
         <div class="new_listing_table_row">
@@ -207,13 +155,14 @@ for (const [name, data] of Object.entries(grouped)) {
     }
 
     html += '<div class="clear"></div></div>';
-
     res.json({ table: html });
+
   } catch (err) {
     console.error("DB error:", err, values);
     res.status(500).json({ error: "Database error" });
   }
 });
+
 
 
 app.listen(port, () => {
