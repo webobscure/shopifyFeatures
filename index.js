@@ -70,7 +70,8 @@ app.get("/chars", async (req, res) => {
       b.specification_name,
       b.specification_suffix,
       a.specification,
-      a.specifications_id
+      a.specifications_id,
+      a.products_specification_id
     FROM 
       products_specifications AS a
     JOIN specification_description AS b ON b.specifications_id = a.specifications_id
@@ -86,7 +87,6 @@ app.get("/chars", async (req, res) => {
 
   const values = [name, country, country];
 
-  // Соответствие language_id → locale
   const LANGUAGE_LOCALE_MAP = {
     1: "ru-RU",
     2: "en-US",
@@ -99,24 +99,15 @@ app.get("/chars", async (req, res) => {
 
   const locale = LANGUAGE_LOCALE_MAP[country] || "en-US";
 
-  // ID-шники для специальных полей
-  const VOLUME_IDS = new Set([763]); // Объем индивидуальной упаковки, Umfang GBX и др.
-  const VESA_IDS = new Set([24]); // VESA sizes
+  const VOLUME_IDS = new Set([763]);
+  const VESA_IDS = new Set([24]);
 
-  // Функция форматирования объема
   function formatVolume(raw, locale = "en-US") {
     if (!raw) return raw;
-
     let numStr = raw.replace(/[^\d.,]/g, "").replace(",", ".");
     let num = parseFloat(numStr);
-
     if (isNaN(num)) return raw;
-
-    // Преобразуем из см³ в м³, если значение больше 1000
-    if (num > 1000) {
-      num = num / 1_000_000;
-    }
-
+    if (num > 1000) num = num / 1_000_000;
     return num.toLocaleString(locale, {
       minimumFractionDigits: 6,
       maximumFractionDigits: 6,
@@ -130,60 +121,50 @@ app.get("/chars", async (req, res) => {
       return res.status(404).json({ error: "Характеристики не найдены" });
     }
 
-    // Группируем данные по названию характеристики
     const grouped = {};
-    const specIdMap = {}; // название характеристики → ID
 
     for (const row of rows) {
       const specName = row.specification_name?.trim();
       const specValue = row.specification?.trim();
       const suffix = row.specification_suffix?.trim() || "";
       const specId = row.specifications_id;
+      const specIndex = row.products_specification_id;
 
       if (!specValue || specValue === "Array") continue;
 
       if (!grouped[specName]) {
         grouped[specName] = {
-          values: new Set(),
+          values: [],
           suffix: suffix,
           specId: specId,
         };
-        specIdMap[specName] = specId;
       }
 
-      grouped[specName].values.add(specValue);
+      grouped[specName].values.push({ value: specValue, index: specIndex });
     }
 
     let html = '<div class="new_listing_table">';
 
     for (const [name, data] of Object.entries(grouped)) {
-      let valuesArray = Array.from(data.values);
-      const specId = data.specId;
+      let valuesArray = data.values;
 
-      // Обработка объема
-      if (VOLUME_IDS.has(specId)) {
-        valuesArray = valuesArray.map((val) => formatVolume(val, locale));
+      if (VOLUME_IDS.has(data.specId)) {
+        valuesArray = valuesArray.map(v => ({
+          ...v,
+          value: formatVolume(v.value, locale)
+        }));
       }
 
-      // Сортировка VESA размеров
-      if (VESA_IDS.has(specId)) {
-        valuesArray.sort((a, b) => {
-          const parseSize = (str) => {
-            let clean = str.replace(/mm/gi, "").trim();
-            let [w, h] = clean.split("x").map(Number);
-            return { w: w || 0, h: h || 0 };
-          };
-          const sizeA = parseSize(a);
-          const sizeB = parseSize(b);
-          if (sizeA.w !== sizeB.w) return sizeA.w - sizeB.w;
-          return sizeA.h - sizeB.h;
-        });
+      if (VESA_IDS.has(data.specId)) {
+        // Сортируем по products_specification_id
+        valuesArray.sort((a, b) => (a.index || 0) - (b.index || 0));
       } else {
-        valuesArray.sort();
+        valuesArray.sort((a, b) => a.value.localeCompare(b.value));
       }
 
       const valueString =
-        valuesArray.join(", ") + (data.suffix ? " " + data.suffix : "");
+        valuesArray.map(v => v.value).join(", ") +
+        (data.suffix ? " " + data.suffix : "");
 
       html += `
         <div class="new_listing_table_row">
@@ -197,12 +178,12 @@ app.get("/chars", async (req, res) => {
     html += '<div class="clear"></div></div>';
 
     res.json({ table: html });
-    // console.log("Запрос к базе c данными:", values);
   } catch (err) {
     console.error("DB error:", err, values);
     res.status(500).json({ error: "Database error" });
   }
 });
+
 
 app.listen(port, () => {
   console.log("Server working on:", port);
