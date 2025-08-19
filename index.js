@@ -175,7 +175,7 @@ app.get("/chars", async (req, res) => {
           let [w, h] = clean.split("x").map((n) => parseInt(n, 10) || 0);
           let min = Math.min(w, h);
           let max = Math.max(w, h);
-          return { original: val, min, max };
+          return { formatted: `${min}x${max}`, min, max };
         });
 
         // сортируем
@@ -184,8 +184,8 @@ app.get("/chars", async (req, res) => {
           return a.max - b.max;
         });
 
-        // возвращаем строки обратно
-        valuesArray = valuesArray.map((item) => item.original);
+        // возвращаем нормализованные строки
+        valuesArray = valuesArray.map((item) => item.formatted);
       } else {
         valuesArray.sort();
       }
