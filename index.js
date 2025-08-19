@@ -18,7 +18,6 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   connectTimeout: 20000,
- 
 });
 
 app.get("/short", async (req, res) => {
@@ -157,50 +156,51 @@ app.get("/chars", async (req, res) => {
     let html = '<div class="new_listing_table">';
 
     for (const [name, data] of Object.entries(grouped)) {
-  let valuesArray = Array.from(data.values);
-  const specId = data.specId;
+      let valuesArray = Array.from(data.values);
+      const specId = data.specId;
 
-  // Обработка объема
-  if (VOLUME_IDS.has(specId)) {
-    valuesArray = valuesArray.map((val) => formatVolume(val, locale));
-  }
+      // Обработка объема
+      if (VOLUME_IDS.has(specId)) {
+        valuesArray = valuesArray.map((val) => formatVolume(val, locale));
+      }
 
-  // Сортировка VESA размеров
-  if (VESA_IDS.has(specId)) {
-    valuesArray.sort((a, b) => {
-      const parseSize = (str) => {
-        // нормализуем: латиница/кириллица → "x"
-        let clean = str.replace(/[хxXХ]/g, "x").replace(/mm/gi, "").trim();
-        let [w, h] = clean.split("x").map((n) => parseInt(n, 10) || 0);
+      // Сортировка VESA размеров
+      if (VESA_IDS.has(specId)) {
+        // нормализуем все значения сначала
+        valuesArray = valuesArray.map((val) => {
+          let clean = val
+            .replace(/[хxXХ]/g, "x")
+            .replace(/mm/gi, "")
+            .trim();
+          let [w, h] = clean.split("x").map((n) => parseInt(n, 10) || 0);
+          let min = Math.min(w, h);
+          let max = Math.max(w, h);
+          return { original: val, min, max };
+        });
 
-        // нормализуем порядок: меньшая сторона первой
-        let min = Math.min(w, h);
-        let max = Math.max(w, h);
-        return { min, max };
-      };
+        // сортируем
+        valuesArray.sort((a, b) => {
+          if (a.min !== b.min) return a.min - b.min;
+          return a.max - b.max;
+        });
 
-      const sizeA = parseSize(a);
-      const sizeB = parseSize(b);
+        // возвращаем строки обратно
+        valuesArray = valuesArray.map((item) => item.original);
+      } else {
+        valuesArray.sort();
+      }
 
-      if (sizeA.min !== sizeB.min) return sizeA.min - sizeB.min;
-      return sizeA.max - sizeB.max;
-    });
-  } else {
-    valuesArray.sort();
-  }
+      const valueString =
+        valuesArray.join(", ") + (data.suffix ? " " + data.suffix : "");
 
-  const valueString =
-    valuesArray.join(", ") + (data.suffix ? " " + data.suffix : "");
-
-  html += `
+      html += `
     <div class="new_listing_table_row">
       <div class="new_listing_table_left">${name}</div>
       <div class="new_listing_table_right" style="line-height: 24.4px;">
         ${valueString}
       </div>
     </div>`;
-}
-
+    }
 
     html += '<div class="clear"></div></div>';
 
