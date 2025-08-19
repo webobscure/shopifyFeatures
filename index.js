@@ -124,24 +124,55 @@ app.get("/chars", async (req, res) => {
     const grouped = {};
 
     for (const row of rows) {
-      const specName = row.specification_name?.trim();
-      const specValue = row.specification?.trim();
-      const suffix = row.specification_suffix?.trim() || "";
-      const specId = row.specifications_id;
-      const specIndex = row.products_specification_id;
+  const specName = row.specification_name?.trim();
+  const specValue = row.specification?.trim();
+  const suffix = row.specification_suffix?.trim() || "";
+  const specId = row.specifications_id;
+  const specIndex = row.products_specification_id;
 
-      if (!specValue || specValue === "Array") continue;
+  if (!specValue || specValue === "Array") continue;
 
-      if (!grouped[specName]) {
-        grouped[specName] = {
-          values: [],
-          suffix: suffix,
-          specId: specId,
-        };
-      }
+  if (!grouped[specName]) {
+    grouped[specName] = {
+      valuesMap: new Map(), // value -> index
+      suffix: suffix,
+      specId: specId,
+    };
+  }
 
-      grouped[specName].values.push({ value: specValue, index: specIndex });
-    }
+  // Если такого значения ещё нет, добавляем
+  if (!grouped[specName].valuesMap.has(specValue)) {
+    grouped[specName].valuesMap.set(specValue, specIndex);
+  }
+}
+
+// Далее при формировании HTML
+for (const [name, data] of Object.entries(grouped)) {
+  let valuesArray = Array.from(data.valuesMap.entries()).map(([value, index]) => ({ value, index }));
+
+  if (VOLUME_IDS.has(data.specId)) {
+    valuesArray = valuesArray.map(v => ({ ...v, value: formatVolume(v.value, locale) }));
+  }
+
+  if (VESA_IDS.has(data.specId)) {
+    // Сортируем по products_specification_id
+    valuesArray.sort((a, b) => (a.index || 0) - (b.index || 0));
+  } else {
+    valuesArray.sort((a, b) => a.value.localeCompare(b.value));
+  }
+
+  const valueString =
+    valuesArray.map(v => v.value).join(", ") + (data.suffix ? " " + data.suffix : "");
+
+  html += `
+    <div class="new_listing_table_row">
+      <div class="new_listing_table_left">${name}</div>
+      <div class="new_listing_table_right" style="line-height: 24.4px;">
+        ${valueString}
+      </div>
+    </div>`;
+}
+
 
     let html = '<div class="new_listing_table">';
 
