@@ -18,7 +18,6 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   connectTimeout: 20000,
- 
 });
 
 app.get("/short", async (req, res) => {
@@ -59,7 +58,8 @@ app.get("/short", async (req, res) => {
 app.get("/chars", async (req, res) => {
   let { name, country } = req.query;
 
-  if (!name || !country) return res.status(400).json({ error: "Missing parameters" });
+  if (!name || !country)
+    return res.status(400).json({ error: "Missing parameters" });
 
   name = decodeURIComponent(name).trim();
 
@@ -86,8 +86,13 @@ app.get("/chars", async (req, res) => {
   const values = [name, country, country];
 
   const LANGUAGE_LOCALE_MAP = {
-    1: "ru-RU", 2: "en-US", 3: "fr-FR", 4: "it-IT",
-    5: "es-ES", 6: "de-DE", 7: "pl-PL",
+    1: "ru-RU",
+    2: "en-US",
+    3: "fr-FR",
+    4: "it-IT",
+    5: "es-ES",
+    6: "de-DE",
+    7: "pl-PL",
   };
 
   const locale = LANGUAGE_LOCALE_MAP[country] || "en-US";
@@ -100,12 +105,16 @@ app.get("/chars", async (req, res) => {
     let num = parseFloat(numStr);
     if (isNaN(num)) return raw;
     if (num > 1000) num = num / 1_000_000;
-    return num.toLocaleString(locale, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+    return num.toLocaleString(locale, {
+      minimumFractionDigits: 6,
+      maximumFractionDigits: 6,
+    });
   }
 
   try {
     const [rows] = await pool.query(sql, values);
-    if (!rows.length) return res.status(404).json({ error: "Характеристики не найдены" });
+    if (!rows.length)
+      return res.status(404).json({ error: "Характеристики не найдены" });
 
     const grouped = {};
 
@@ -131,10 +140,15 @@ app.get("/chars", async (req, res) => {
     // Генерация HTML
     let html = '<div class="new_listing_table">';
     for (const [name, data] of Object.entries(grouped)) {
-      let valuesArray = Array.from(data.valuesMap.entries()).map(([value, index]) => ({ value, index }));
+      let valuesArray = Array.from(data.valuesMap.entries()).map(
+        ([value, index]) => ({ value, index }),
+      );
 
       if (VOLUME_IDS.has(data.specId)) {
-        valuesArray = valuesArray.map(v => ({ ...v, value: formatVolume(v.value, locale) }));
+        valuesArray = valuesArray.map((v) => ({
+          ...v,
+          value: formatVolume(v.value, locale),
+        }));
       }
 
       if (VESA_IDS.has(data.specId)) {
@@ -143,7 +157,9 @@ app.get("/chars", async (req, res) => {
         valuesArray.sort((a, b) => a.value.localeCompare(b.value));
       }
 
-      const valueString = valuesArray.map(v => v.value).join(", ") + (data.suffix ? " " + data.suffix : "");
+      const valueString =
+        valuesArray.map((v) => v.value).join(", ") +
+        (data.suffix ? " " + data.suffix : "");
 
       html += `
         <div class="new_listing_table_row">
@@ -156,14 +172,145 @@ app.get("/chars", async (req, res) => {
 
     html += '<div class="clear"></div></div>';
     res.json({ table: html });
-
   } catch (err) {
     console.error("DB error:", err, values);
     res.status(500).json({ error: "Database error" });
   }
 });
 
+app.get("/specifications", async (req, res) => {
+  let { name, model, product_id, country, specification_ids } = req.query;
 
+  const DEFAULT_SPECIFICATION_IDS = [22, 24, 709, 23];
+  const SPECIFICATION_FIELDS = {
+    709: "diagonal_min",
+    22: "diagonal_max",
+    24: "vesa",
+    23: "max_load",
+  };
+  const CATEGORY_TYPES = {
+    "Потолочные кронштейны": "Celling",
+    "Настенные кронштейны": "Wall",
+    "Стойки для телевизоров": "Floor",
+    "Настольные кронштейны": "Desk",
+    "Кронштейны для проекторов": "Projector",
+    "Товары для дома": "Home",
+  };
+
+  function formatSpecificationValue(value) {
+    const trimmedValue = value.trim();
+    const normalizedNumber = trimmedValue.replace(",", ".");
+
+    if (/^[+-]?\d+(\.\d+)?$/.test(normalizedNumber)) {
+      return Number(normalizedNumber);
+    }
+
+    return trimmedValue;
+  }
+
+  const languageId = country || 1;
+  const specificationIds = specification_ids
+    ? specification_ids
+        .split(",")
+        .map((id) => Number(id.trim()))
+        .filter((id) => Number.isInteger(id))
+    : DEFAULT_SPECIFICATION_IDS;
+
+  if (!specificationIds.length) {
+    return res.status(400).json({ error: "Missing specification_ids" });
+  }
+
+  const where = [
+    "a.language_id = ?",
+    "a.specification IS NOT NULL",
+    "TRIM(a.specification) <> ''",
+    "a.specification <> 'Array'",
+    `a.specifications_id IN (${specificationIds.map(() => "?").join(", ")})`,
+  ];
+  const values = [languageId, ...specificationIds];
+
+  const productModel = model || name;
+
+  if (productModel) {
+    const decodedModel = decodeURIComponent(productModel).trim();
+    where.push("p.products_model = ?");
+    values.push(decodedModel);
+  }
+
+  if (product_id) {
+    where.push("a.products_id = ?");
+    values.push(product_id);
+  }
+
+  const sql = `
+    SELECT
+      a.products_id,
+      p.products_model,
+      a.specification,
+      a.specifications_id,
+      a.products_specification_id,
+      c.products_type
+    FROM products_specifications AS a
+    JOIN products AS p
+      ON p.products_id = a.products_id
+    LEFT JOIN products_to_categories AS pc
+      ON pc.products_id = a.products_id
+    LEFT JOIN categories AS c
+      ON c.categories_id = pc.categories_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY a.products_id ASC, a.products_specification_id ASC
+  `;
+  const queryValues = values;
+
+  try {
+    const [rows] = await pool.query(sql, queryValues);
+    const productsMap = new Map();
+
+    for (const row of rows) {
+      if (!productsMap.has(row.products_id)) {
+        productsMap.set(row.products_id, {
+          product: row.products_model,
+          category: "",
+          categoryTypes: [],
+        });
+      }
+
+      const product = productsMap.get(row.products_id);
+      const rawCategory = row.products_type?.trim();
+      const category = CATEGORY_TYPES[rawCategory] || rawCategory;
+      if (
+        category &&
+        category !== "0" &&
+        !product.categoryTypes.includes(category)
+      ) {
+        product.categoryTypes.push(category);
+        product.category = product.categoryTypes.join(", ");
+      }
+
+      const fieldName =
+        SPECIFICATION_FIELDS[row.specifications_id] ||
+        `spec_${row.specifications_id}`;
+      const value = formatSpecificationValue(row.specification);
+
+      if (fieldName === "vesa") {
+        if (!product.vesa) product.vesa = [];
+        if (!product.vesa.includes(value)) product.vesa.push(value);
+      } else if (!product[fieldName]) {
+        product[fieldName] = value;
+      }
+    }
+
+    res.json({
+      count: productsMap.size,
+      products: Array.from(productsMap.values()).map(
+        ({ categoryTypes, ...product }) => product,
+      ),
+    });
+  } catch (err) {
+    console.error("DB error:", err, queryValues);
+    res.status(500).json({ error: "Database error" });
+  }
+});
 
 app.listen(port, () => {
   console.log("Server working on:", port);
