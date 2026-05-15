@@ -196,6 +196,7 @@ app.get("/specifications", async (req, res) => {
     "Кронштейны для проекторов": "Projector",
     "Товары для дома": "Home",
   };
+  const ALLOWED_CATEGORY_TYPES = new Set(["Floor", "Wall", "Celling"]);
 
   function formatSpecificationValue(value) {
     const trimmedValue = value.trim();
@@ -281,6 +282,7 @@ app.get("/specifications", async (req, res) => {
       if (
         category &&
         category !== "0" &&
+        ALLOWED_CATEGORY_TYPES.has(category) &&
         !product.categoryTypes.includes(category)
       ) {
         product.categoryTypes.push(category);
@@ -300,11 +302,15 @@ app.get("/specifications", async (req, res) => {
       }
     }
 
-    res.json({
-      count: productsMap.size,
-      products: Array.from(productsMap.values()).map(
+    const products = Array.from(productsMap.values())
+      .filter(({ categoryTypes }) => categoryTypes.length)
+      .map(
         ({ categoryTypes, ...product }) => product,
-      ),
+      );
+
+    res.json({
+      count: products.length,
+      products,
     });
   } catch (err) {
     console.error("DB error:", err, queryValues);
