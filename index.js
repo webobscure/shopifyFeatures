@@ -192,11 +192,12 @@ app.get("/specifications", async (req, res) => {
     "Потолочные кронштейны": "Celling",
     "Настенные кронштейны": "Wall",
     "Стойки для телевизоров": "Floor",
-    "Настольные кронштейны": "Desk",
+    "Настольные кронштейны": "Desktop",
     "Кронштейны для проекторов": "Projector",
     "Товары для дома": "Home",
   };
   const ALLOWED_CATEGORY_TYPES = new Set(["Floor", "Wall", "Celling"]);
+  const EXCLUDED_CATEGORY_TYPES = new Set(["Desktop"]);
 
   function formatSpecificationValue(value) {
     const trimmedValue = value.trim();
@@ -273,12 +274,18 @@ app.get("/specifications", async (req, res) => {
           product: row.products_model,
           category: "",
           categoryTypes: [],
+          isExcludedCategory: false,
         });
       }
 
       const product = productsMap.get(row.products_id);
       const rawCategory = row.products_type?.trim();
       const category = CATEGORY_TYPES[rawCategory] || rawCategory;
+
+      if (EXCLUDED_CATEGORY_TYPES.has(category)) {
+        product.isExcludedCategory = true;
+      }
+
       if (
         category &&
         category !== "0" &&
@@ -303,9 +310,11 @@ app.get("/specifications", async (req, res) => {
     }
 
     const products = Array.from(productsMap.values())
-      .filter(({ categoryTypes }) => categoryTypes.length)
+      .filter(({ categoryTypes, isExcludedCategory }) => {
+        return categoryTypes.length && !isExcludedCategory;
+      })
       .map(
-        ({ categoryTypes, ...product }) => product,
+        ({ categoryTypes, isExcludedCategory, ...product }) => product,
       );
 
     res.json({
