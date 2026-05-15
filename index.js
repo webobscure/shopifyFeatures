@@ -181,12 +181,12 @@ app.get("/chars", async (req, res) => {
 app.get("/specifications", async (req, res) => {
   let { name, model, product_id, country, specification_ids } = req.query;
 
-  const DEFAULT_SPECIFICATION_IDS = [22, 24, 709, 23];
+  const DEFAULT_SPECIFICATION_IDS = [22, 24, 709, 786];
   const SPECIFICATION_FIELDS = {
     709: "diagonal_min",
     22: "diagonal_max",
     24: "vesa",
-    23: "max_load",
+    786: "max_load",
   };
   const CATEGORY_TYPES = {
     "Потолочные кронштейны": "Celling",
