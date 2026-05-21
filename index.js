@@ -8,7 +8,7 @@ const port = 3000;
 
 dotenv.config();
 
-const allowed = [
+const allowed = new Set([
   "https://onkron.pl",
   "https://onkron.us",
   "https://onkron.de",
@@ -16,7 +16,7 @@ const allowed = [
   "https://onkron.fr",
   "https://onkron.it",
   "https://onkron.es",
-];
+]);
 
 app.use(
   cors({
