@@ -8,7 +8,26 @@ const port = 3000;
 
 dotenv.config();
 
-app.use(cors()); // разрешаем все домены
+const allowed = [
+  "https://onkron.pl",
+  "https://onkron.us",
+  "https://onkron.de",
+  "https://onkron-uk.co.uk",
+  "https://onkron.fr",
+  "https://onkron.it",
+  "https://onkron.es",
+];
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (allowed.has(origin)) return cb(null, true);
+      cb(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  }),
+);
 
 const pool = mysql.createPool({
   host: process.env.host,
@@ -313,9 +332,7 @@ app.get("/specifications", async (req, res) => {
       .filter(({ categoryTypes, isExcludedCategory }) => {
         return categoryTypes.length && !isExcludedCategory;
       })
-      .map(
-        ({ categoryTypes, isExcludedCategory, ...product }) => product,
-      );
+      .map(({ categoryTypes, isExcludedCategory, ...product }) => product);
 
     res.json({
       count: products.length,
